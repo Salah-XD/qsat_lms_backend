@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  student
+  instructor
+  admin
+}
+
+enum Difficulty {
+  Beginner
+  Intermediate
+  Advanced
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  shipped
+  delivered
+  cancelled
+}
+
+enum TagType {
+  kit
+  course
+  general
+}
+
+model User {
+  id             Int       @id @default(autoincrement())
+  firstName      String
+  lastName       String
+  email          String    @unique
+  passwordHash   String
+  role           Role      @default(student)
+  bio            String?
+  phone          String?
+  avatarUrl      String?
+  isActive       Boolean   @default(true)
+  emailVerified  Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastLogin      DateTime?
+
+  instructor     Instructor?
+  orders         Order[]
+  enrollments    Enrollment[]
+  reviews        Review[]
+  moduleProgress UserModuleProgress[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Instructor {
+  id         Int     @id @default(autoincrement())
+  userId     Int     @unique
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName  String
+  lastName   String
+  bio        String?
+  expertise  String[] // Postgres array
+  avatarUrl  String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  courses    Course[]
+
+  @@map("instructors")
+}
+
+model Kit {
+  id             Int       @id @default(autoincrement())
+  name           String
+  description    String
+  price          Decimal   @db.Decimal(10, 2)
+  originalPrice  Decimal?  @db.Decimal(10, 2)
+  category       String
+  difficulty     Difficulty
+  duration       String?
+  modules        Int       @default(0)
+  imageUrl       String?
+  features       String[]  // Postgres array
+  specifications Json?
+  whatIncludes   String[]  // Postgres array
+  isActive       Boolean   @default(true)
+  memberCount    Int       @default(0) // reflect "members" for frontend stats
+  stock          Int       @default(0) // optional inventory if needed
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  images         KitImage[]
+  reviews        Review[]
+  orders         Order[]
+  tags           KitTag[]
+
+  @@index([category])
+  @@index([difficulty])
+  @@index([isActive])
+  @@map("kits")
+}
+
+model KitImage {
+  id        Int     @id @default(autoincrement())
+  kitId     Int
+  url       String
+  isPrimary Boolean @default(false)
+  order     Int     @default(0)
+
+  kit       Kit     @relation(fields: [kitId], references: [id], onDelete: Cascade)
+
+  @@index([kitId])
+  @@map("kit_images")
+}
+
+model Tag {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  type      TagType?
+  createdAt DateTime @default(now())
+
+  kitEdges    KitTag[]
+  courseEdges CourseTag[]
+
+  @@index([type])
+  @@map("tags")
+}
+
+model KitTag {
+  kitId Int
+  tagId Int
+
+  kit   Kit @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  tag   Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([kitId, tagId])
+  @@index([tagId])
+  @@map("kit_tags")
+}
+
+model CourseTag {
+  courseId Int
+  tagId    Int
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, tagId])
+  @@index([tagId])
+  @@map("course_tags")
+}
+
+model Course {
+  id            Int        @id @default(autoincrement())
+  name          String
+  description   String
+  price         Decimal     @default(0) @db.Decimal(10, 2)
+  category      String
+  difficulty    Difficulty
+  duration      String?
+  modules       Int         @default(0)
+  imageUrl      String?
+  isPremium     Boolean     @default(false)
+  whatYouLearn  String[]    // Postgres array
+  requirements  String[]    // Postgres array
+  instructorId  Int?
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  instructor    Instructor? @relation(fields: [instructorId], references: [id])
+  moduleList    CourseModule[]
+  enrollments   Enrollment[]
+  reviews       Review[]
+  tags          CourseTag[]
+
+  @@index([category])
+  @@index([difficulty])
+  @@index([isActive])
+  @@map("courses")
+}
+
+model CourseModule {
+  id         Int      @id @default(autoincrement())
+  courseId   Int
+  title      String
+  description String?
+  duration   String?
+  videoUrl   String?
+  orderIndex Int
+  isFree     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  progress   UserModuleProgress[]
+
+  @@index([courseId])
+  @@map("course_modules")
+}
+
+model Order {
+  id              Int       @id @default(autoincrement())
+  userId          Int
+  kitId           Int?
+  quantity        Int       @default(1)
+  subtotal        Decimal   @db.Decimal(10, 2)
+  tax             Decimal   @default(0) @db.Decimal(10, 2)
+  shipping        Decimal   @default(0) @db.Decimal(10, 2)
+  total           Decimal   @db.Decimal(10, 2)
+  status          OrderStatus @default(pending)
+  shippingAddress Json
+  trackingNumber  String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kit             Kit?      @relation(fields: [kitId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model Enrollment {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  courseId       Int
+  status         String    @default("active")
+  progress       Int       @default(0)
+  enrolledAt     DateTime  @default(now())
+  completedAt    DateTime?
+  lastAccessedAt DateTime?
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course         Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  moduleProgress UserModuleProgress[]
+  certificates   Certificate[]
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+model UserModuleProgress {
+  id           Int           @id @default(autoincrement())
+  userId       Int
+  enrollmentId Int
+  moduleId     Int
+  completedAt  DateTime      @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  module       CourseModule  @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleId])
+  @@map("user_module_progress")
+}
+
+model Review {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  kitId      Int?
+  courseId   Int?
+  rating     Int
+  comment    String?
+  isVerified Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kit        Kit?      @relation(fields: [kitId], references: [id], onDelete: Cascade)
+  course     Course?   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([kitId])
+  @@index([courseId])
+  @@map("reviews")
+}
+
+model Certificate {
+  id               Int      @id @default(autoincrement())
+  enrollmentId     Int
+  certificateNumber String  @unique
+  verificationUrl  String?
+  issuedAt         DateTime @default(now())
+
+  enrollment       Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@map("certificates")
+}
