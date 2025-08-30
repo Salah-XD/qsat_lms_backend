@@ -125,7 +125,7 @@ model Tag {
   name      String   @unique
   type      TagType?
   createdAt DateTime @default(now())
-
+slug      String   @unique 
   kitEdges    KitTag[]
   courseEdges CourseTag[]
 

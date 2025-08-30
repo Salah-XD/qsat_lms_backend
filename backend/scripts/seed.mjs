@@ -5,7 +5,7 @@ import slugify from 'slugify'
 const upsertTag = async (name) => {
   const slug = slugify(name, { lower: true })
   return prisma.tag.upsert({
-    where: { slug },
+    where: { name },
     create: { name, slug },
     update: {},
   })
@@ -61,11 +61,11 @@ const main = async () => {
         'Launch Pad & Controller',
         'Safety Equipment',
       ],
-      membersCount: 1250,
+      memberCount: 1250,
       images: {
         create: [
-          { url: '/placeholder.svg?height=400&width=600', sort: 0 },
-          { url: '/placeholder.svg?height=400&width=600', sort: 1 },
+          { url: '/placeholder.svg?height=400&width=600', order: 0 },
+          { url: '/placeholder.svg?height=400&width=600', order: 1 },
         ],
       },
       tags: { create: [{ tagId: rocketry.id }] },
