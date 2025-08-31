@@ -1,7 +1,15 @@
 import { prisma } from '../backend/lib/prisma.mjs'
 import bcrypt from 'bcryptjs'
+import slugify from 'slugify'
 
 async function main() {
+  // Clean existing kit data so only Telescope Kit remains
+  await prisma.order.deleteMany({ where: { kitId: { not: null } } })
+  await prisma.review.deleteMany({ where: { kitId: { not: null } } })
+  await prisma.kitTag.deleteMany()
+  await prisma.kitImage.deleteMany()
+  await prisma.kit.deleteMany()
+
   // Create a test user
   const passwordHash = await bcrypt.hash('Test@1234', 12)
   const user = await prisma.user.upsert({
@@ -17,100 +25,83 @@ async function main() {
     },
   })
 
-  // Tags
-  const tagNames = ['Rocketry', 'Satellite', 'Astronomy', 'Engineering', 'Robotics', 'Physics', 'Beginner', 'Advanced']
+  // Tags (with slug for schema compliance)
+  const tagNames = ['Telescope', 'Astronomy']
   const tags = await Promise.all(
     tagNames.map((name) =>
-      prisma.tag.upsert({ where: { name }, update: {}, create: { name, type: 'kit' } }),
+      prisma.tag.upsert({
+        where: { name },
+        update: {},
+        create: { name, type: 'kit', slug: slugify(name, { lower: true }) },
+      }),
     ),
   )
 
-  // Kits
-  const kitsData = [
-    {
-      name: 'Rocketry Hands-On Kit',
-      description:
-        'Build and launch your own model rocket with comprehensive learning modules covering propulsion, aerodynamics, and flight dynamics.',
-      price: 2999.0,
-      originalPrice: 3499.0,
-      category: 'Rocketry',
-      difficulty: 'Intermediate',
-      duration: '6 hours',
-      modules: 8,
-      imageUrl: '/images/kits/rocketry-kit.jpg',
-      features: ['Model Rocket Kit', 'Launch Pad', 'Recovery System', 'Safety Equipment'],
-      specifications: { weight: '2.5kg', dimensions: '45x30x15cm', max_altitude: '300m', recovery: 'Parachute' },
-      whatIncludes: ['Rocket body tubes', 'Nose cone', 'Fins', 'Recovery system', 'Launch pad', 'Safety manual'],
-      memberCount: 1250,
-      stock: 100,
-      tagNames: ['Rocketry', 'Advanced'],
-    },
-    {
-      name: 'Satellite Communication Kit',
-      description:
-        'Learn satellite technology and build a working communication system with ground station setup and signal processing.',
-      price: 3499.0,
-      originalPrice: 3999.0,
-      category: 'Satellite',
-      difficulty: 'Advanced',
-      duration: '8 hours',
-      modules: 10,
-      imageUrl: '/images/kits/satellite-kit.jpg',
-      features: ['Satellite Simulator', 'Ground Station', 'Antenna Kit', 'Signal Analyzer'],
-      specifications: { frequency: '2.4GHz', range: '10km', power: '12V', antenna_gain: '15dBi' },
-      whatIncludes: ['Satellite simulator board', 'Ground station receiver', 'Directional antenna', 'Signal unit'],
-      memberCount: 890,
-      stock: 100,
-      tagNames: ['Satellite', 'Advanced'],
-    },
-  ]
+  const TELESCOPE_IMG = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-lrPaaonoR6lgHP0vgIkA6yfwkOR3z1.png'
 
-  for (const kd of kitsData) {
-    const kit = await prisma.kit.upsert({
-      where: { name: kd.name },
-      update: {},
-      create: {
-        name: kd.name,
-        description: kd.description,
-        price: kd.price,
-        originalPrice: kd.originalPrice,
-        category: kd.category,
-        difficulty: kd.difficulty,
-        duration: kd.duration,
-        modules: kd.modules,
-        imageUrl: kd.imageUrl,
-        features: kd.features,
-        specifications: kd.specifications,
-        whatIncludes: kd.whatIncludes,
-        memberCount: kd.memberCount,
-        stock: kd.stock,
-        isActive: true,
-      },
-    })
-
-    // Attach tags
-    for (const t of kd.tagNames) {
-      const tag = tags.find((x) => x.name === t)
-      if (tag) {
-        await prisma.kitTag.upsert({
-          where: { kitId_tagId: { kitId: kit.id, tagId: tag.id } },
-          update: {},
-          create: { kitId: kit.id, tagId: tag.id },
-        })
-      }
-    }
-
-    // Sample reviews
-    await prisma.review.createMany({
-      data: [
-        { userId: user.id, kitId: kit.id, rating: 5, comment: 'Fantastic kit! Highly recommended.', isVerified: true },
-        { userId: user.id, kitId: kit.id, rating: 4, comment: 'Great learning experience.', isVerified: true },
-      ],
-      skipDuplicates: true,
-    })
+  // Single Telescope Kit
+  const kd = {
+    name: 'QSAT Telescope Kit',
+    description:
+      'This kit comes with all the parts you need — kids can assemble it step by step and learn how a telescope works. Once built, you can use it to observe the Moon, stars, and planets.',
+    price: 3499.0,
+    originalPrice: 3999.0,
+    category: 'Astronomy',
+    difficulty: 'Beginner',
+    duration: '4–6 hours',
+    modules: 6,
+    imageUrl: TELESCOPE_IMG, // Source URL per request
+    features: ['Stable Alt-Az Mount', 'Quick-Start Guide', 'Finder Scope', 'Adjustable Tripod'],
+    specifications: { aperture: '70mm', focal_length: '700mm', mount: 'Alt-Az', weight: '3.2kg' },
+    whatIncludes: ['Optical tube', 'Finder scope', 'Tripod & mount', 'Eyepieces 10mm & 25mm', 'Guide'],
+    memberCount: 250,
+    stock: 50,
+    tagNames: ['Telescope', 'Astronomy'],
   }
 
-  console.log('[v0] Seed complete')
+  const kit = await prisma.kit.create({
+    data: {
+      name: kd.name,
+      description: kd.description,
+      price: kd.price,
+      originalPrice: kd.originalPrice,
+      category: kd.category,
+      difficulty: kd.difficulty,
+      duration: kd.duration,
+      modules: kd.modules,
+      imageUrl: kd.imageUrl,
+      features: kd.features,
+      specifications: kd.specifications,
+      whatIncludes: kd.whatIncludes,
+      memberCount: kd.memberCount,
+      stock: kd.stock,
+      isActive: true,
+      images: { create: [{ url: TELESCOPE_IMG, isPrimary: true, order: 0 }] },
+    },
+  })
+
+  // Attach tags
+  for (const t of kd.tagNames) {
+    const tag = tags.find((x) => x.name === t)
+    if (tag) {
+      await prisma.kitTag.upsert({
+        where: { kitId_tagId: { kitId: kit.id, tagId: tag.id } },
+        update: {},
+        create: { kitId: kit.id, tagId: tag.id },
+      })
+    }
+  }
+
+  // Sample reviews
+  await prisma.review.createMany({
+    data: [
+      { userId: user.id, kitId: kit.id, rating: 5, comment: 'Crystal clear views of the Moon!', isVerified: true },
+      { userId: user.id, kitId: kit.id, rating: 4, comment: 'Great starter kit for astronomy.', isVerified: true },
+    ],
+    skipDuplicates: true,
+  })
+
+  console.log('[v0] Seed complete: Telescope Kit only')
 }
 
 main()

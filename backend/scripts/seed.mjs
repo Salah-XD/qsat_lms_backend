@@ -12,6 +12,13 @@ const upsertTag = async (name) => {
 }
 
 const main = async () => {
+  // Remove existing kit-related data to ensure only Telescope Kit remains
+  await prisma.order.deleteMany({ where: { kitId: { not: null } } })
+  await prisma.review.deleteMany({ where: { kitId: { not: null } } })
+  await prisma.kitTag.deleteMany()
+  await prisma.kitImage.deleteMany()
+  await prisma.kit.deleteMany()
+
   const passwordHash = await bcrypt.hash('Password123!', 12)
   const user = await prisma.user.upsert({
     where: { email: 'student@example.com' },
@@ -31,72 +38,57 @@ const main = async () => {
       firstName: instructorUser.firstName,
       lastName: instructorUser.lastName,
       bio: 'Former NASA Engineer',
-      expertise: ['Rocketry', 'Aerodynamics'],
+      expertise: ['Astronomy', 'Optics'],
     },
     update: {},
   })
 
-  const [rocketry, satellite, astronomy] = await Promise.all([
-    upsertTag('Rocketry'),
-    upsertTag('Satellite'),
+  // Only the tags needed for Telescope Kit
+  const [telescopeTag, astronomyTag] = await Promise.all([
+    upsertTag('Telescope'),
     upsertTag('Astronomy'),
   ])
 
+  const TELESCOPE_IMG = 'https://hebbkx1anhila5yf.public.blob.vercel-storage.com/image-lrPaaonoR6lgHP0vgIkA6yfwkOR3z1.png'
+
   const kit = await prisma.kit.create({
     data: {
-      name: 'Rocketry Hands-On Kit',
+      name: 'QSAT Telescope Kit',
       description:
-        'Build and launch your own model rocket with comprehensive learning modules covering propulsion and aerodynamics.',
-      price: 2999,
-      originalPrice: 3499,
-      category: 'Rocketry',
-      difficulty: 'Intermediate',
-      duration: '6 hours',
-      modules: 8,
-      features: ['Model Rocket Kit', 'Launch Pad', 'Recovery System', 'Safety Equipment'],
-      whatIncludes: [
-        'Model Rocket Body Kit',
-        'Engine Mount Assembly',
-        'Recovery System',
-        'Launch Pad & Controller',
-        'Safety Equipment',
-      ],
-      memberCount: 1250,
-      images: {
-        create: [
-          { url: '/placeholder.svg?height=400&width=600', order: 0 },
-          { url: '/placeholder.svg?height=400&width=600', order: 1 },
-        ],
-      },
-      tags: { create: [{ tagId: rocketry.id }] },
-    },
-  })
-
-  await prisma.course.create({
-    data: {
-      name: 'Introduction to Rocket Science',
-      description: 'Learn the fundamentals of rocket propulsion, aerodynamics, and space flight mechanics.',
-      price: 0,
-      category: 'Rocketry',
+        'This kit comes with all the parts you need — kids can assemble it step by step and learn how a telescope works. Once built, you can use it to observe the Moon, stars, and planets.',
+      price: 3499,
+      originalPrice: 3999,
+      category: 'Astronomy',
       difficulty: 'Beginner',
-      duration: '8 hours',
-      modules: 12,
-      isPremium: false,
-      instructorId: instructor.id,
-      whatYouLearn: ['Propulsion', 'Aerodynamics', 'Stability'],
-      requirements: ['High-school physics'],
+      duration: '4–6 hours',
+      modules: 6,
+      imageUrl: TELESCOPE_IMG, // use Source URL as requested
+      features: ['Stable Alt-Az Mount', 'Quick-Start Guide', 'Finder Scope', 'Adjustable Tripod'],
+      whatIncludes: [
+        'Optical Tube Assembly',
+        'Finder scope',
+        'Alt-Az mount & tripod',
+        'Eyepieces (10mm & 25mm)',
+        'Quick-start guide',
+      ],
+      memberCount: 250,
+      images: {
+        create: [{ url: TELESCOPE_IMG, isPrimary: true, order: 0 }],
+      },
+      tags: { create: [{ tagId: telescopeTag.id }, { tagId: astronomyTag.id }] },
     },
   })
 
+  // Optional sample order referencing the Telescope Kit
   await prisma.order.create({
     data: {
       userId: user.id,
       kitId: kit.id,
       quantity: 1,
-      subtotal: 2999,
-      tax: 2999 * 0.18,
+      subtotal: 3499,
+      tax: 3499 * 0.18,
       shipping: 0,
-      total: 2999 * 1.18,
+      total: 3499 * 1.18,
       status: 'pending',
       shippingAddress: {
         name: 'Student User',
@@ -110,7 +102,7 @@ const main = async () => {
     },
   })
 
-  console.log('[seed] done')
+  console.log('[seed] Telescope Kit inserted; other kits removed')
 }
 
 main()
